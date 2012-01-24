@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	htmlDir = "/home/ian/devel/go/src/rtw/html"
+	htmlDir = "/home/ian/devel/go/src/rtw/chatter/html"
 )
 
 func main() {
