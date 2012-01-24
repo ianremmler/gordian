@@ -19,12 +19,11 @@
 $('#message').hide()
 $('#content').hide()
 
-var ws
 $('#name').change(function(){
   $('#name').attr('readonly', true);
   $('#message').show()
   $('#content').show()
-  ws = $.websocket("ws://localhost:12345/chat/" + this.value, {
+  var ws = $.websocket("ws://localhost:12345/chat/" + this.value, {
           events: {
                   message: function(e) { $('#content').append(e.data + '<br>') }
           }

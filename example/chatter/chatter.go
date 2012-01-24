@@ -3,7 +3,7 @@ package chatter
 import (
 	"encoding/json"
 	"fmt"
-	"gordian/gordian"
+	"github.com/ianremmler/gordian"
 	"strings"
 	"websocket"
 )
