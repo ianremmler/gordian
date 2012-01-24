@@ -3,6 +3,8 @@ package chatter
 import (
 	"websocket"
 	"strings"
+	"encoding/json"
+	"fmt"
 	"rtw/rtw"
 )
 
@@ -31,6 +33,21 @@ func (c *Chatter) Disconnect(id rtw.ClientId) {
 }
 
 func (c *Chatter) Message(msg rtw.Message) {
+	var msgJson map[string]string
+	if err := json.Unmarshal(msg.Message, &msgJson); err != nil {
+		fmt.Println(err)
+		return
+	}
+	if in, ok := msgJson["data"]; ok {
+		if idStr, ok := msg.Id.(string); ok {
+			msgJson["data"] = idStr + ": " + in
+			if out, err := json.Marshal(msgJson); err != nil {
+				return
+			} else {
+				msg.Message = out
+			}
+		}
+	}
 	for id, _ := range c.clients {
 		c.Send(id, msg)
 	}
