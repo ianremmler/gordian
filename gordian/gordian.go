@@ -1,4 +1,4 @@
-package rtw
+package gordian
 
 import (
 	"fmt"
@@ -31,73 +31,73 @@ type clientInfo struct {
 	isAlive  bool
 }
 
-type RTW struct {
+type Gordian struct {
 	fromClient chan Message
 	clientCtrl chan clientInfo
 	clients    map[ClientId]clientInfo
 	handler    Handler
 }
 
-func NewRTW(h Handler) *RTW {
-	rtw := &RTW{
+func NewGordian(h Handler) *Gordian {
+	g := &Gordian{
 		fromClient: make(chan Message),
 		clientCtrl: make(chan clientInfo),
 		clients:    make(map[ClientId]clientInfo),
 		handler:    h,
 	}
-	return rtw
+	return g
 }
 
-func (rtw *RTW) Run() {
-	go rtw.manageClients()
+func (g *Gordian) Run() {
+	go g.manageClients()
 }
 
-func (rtw *RTW) Send(id ClientId, msg Message) {
-	if ci, ok := rtw.clients[id]; ok {
+func (g *Gordian) Send(id ClientId, msg Message) {
+	if ci, ok := g.clients[id]; ok {
 		ci.toClient <- msg
 	}
 }
 
-func (rtw *RTW) WSHandler() func(ws *websocket.Conn) {
+func (g *Gordian) WSHandler() func(ws *websocket.Conn) {
 	return func(ws *websocket.Conn) {
-		id := rtw.handler.Connect(ws)
+		id := g.handler.Connect(ws)
 		if id == nil {
 			return
 		}
 		toClient := make(chan Message)
 		ci := clientInfo{id, toClient, true}
-		rtw.clientCtrl <- ci
-		go rtw.writeToWS(ws, ci)
-		rtw.readFromWS(ws, ci)
+		g.clientCtrl <- ci
+		go g.writeToWS(ws, ci)
+		g.readFromWS(ws, ci)
+		g.handler.Disconnect(id)
 		ci.isAlive = false
-		rtw.handler.Disconnect(id)
-		rtw.clientCtrl <- ci
+		g.clientCtrl <- ci
 	}
 }
 
-func (rtw *RTW) manageClients() {
+func (g *Gordian) manageClients() {
 	for {
 		select {
-		case msg := <-rtw.fromClient:
-			rtw.handler.Message(msg)
-		case ci := <-rtw.clientCtrl:
+		case msg := <-g.fromClient:
+			g.handler.Message(msg)
+		case ci := <-g.clientCtrl:
 			if ci.isAlive {
-				rtw.clients[ci.id] = ci
+				g.clients[ci.id] = ci
 			} else {
 				close(ci.toClient)
-				delete(rtw.clients, ci.id)
+				delete(g.clients, ci.id)
 			}
 		}
 	}
 }
 
-func (rtw *RTW) readFromWS(ws *websocket.Conn, ci clientInfo) {
+func (g *Gordian) readFromWS(ws *websocket.Conn, ci clientInfo) {
 	msg := make(MessageData, MaxMessageSize)
 	for {
 		n, err := ws.Read(msg)
 		switch err {
 		case nil:
-			rtw.fromClient <- Message{ci.id, msg[:n]}
+			g.fromClient <- Message{ci.id, msg[:n]}
 		case io.EOF:
 			return
 		default:
@@ -106,7 +106,7 @@ func (rtw *RTW) readFromWS(ws *websocket.Conn, ci clientInfo) {
 	}
 }
 
-func (rtw *RTW) writeToWS(ws *websocket.Conn, ci clientInfo) {
+func (g *Gordian) writeToWS(ws *websocket.Conn, ci clientInfo) {
 	for {
 		msg, ok := <-ci.toClient
 		if !ok {

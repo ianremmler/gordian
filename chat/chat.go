@@ -1,13 +1,13 @@
 package main
 
 import (
+	"gordian/chatter"
 	"net/http"
-	"rtw/chatter"
 	"websocket"
 )
 
 const (
-	htmlDir = "/home/ian/devel/go/src/rtw/chatter/html"
+	htmlDir = "/home/ian/devel/go/src/gordian/chatter/html"
 )
 
 func main() {

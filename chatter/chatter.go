@@ -3,25 +3,25 @@ package chatter
 import (
 	"encoding/json"
 	"fmt"
-	"rtw/rtw"
+	"gordian/gordian"
 	"strings"
 	"websocket"
 )
 
 type Chatter struct {
-	clients map[rtw.ClientId]struct{}
-	*rtw.RTW
+	clients map[gordian.ClientId]struct{}
+	*gordian.Gordian
 }
 
 func NewChatter() *Chatter {
 	c := &Chatter{
-		clients: make(map[rtw.ClientId]struct{}),
+		clients: make(map[gordian.ClientId]struct{}),
 	}
-	c.RTW = rtw.NewRTW(c)
+	c.Gordian = gordian.NewGordian(c)
 	return c
 }
 
-func (c *Chatter) Connect(ws *websocket.Conn) rtw.ClientId {
+func (c *Chatter) Connect(ws *websocket.Conn) gordian.ClientId {
 	path := ws.Request().URL.Path
 	id := path[strings.LastIndex(path, "/")+1:]
 	if id == "" {
@@ -31,11 +31,11 @@ func (c *Chatter) Connect(ws *websocket.Conn) rtw.ClientId {
 	return id
 }
 
-func (c *Chatter) Disconnect(id rtw.ClientId) {
+func (c *Chatter) Disconnect(id gordian.ClientId) {
 	delete(c.clients, id)
 }
 
-func (c *Chatter) Message(msg rtw.Message) {
+func (c *Chatter) Message(msg gordian.Message) {
 	var msgJson map[string]string
 	if err := json.Unmarshal(msg.Message, &msgJson); err != nil {
 		fmt.Println(err)
