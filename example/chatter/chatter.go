@@ -44,9 +44,7 @@ func (c *Chatter) Message(msg gordian.Message) {
 	if in, ok := msgJson["data"]; ok {
 		if idStr, ok := msg.Id.(string); ok {
 			msgJson["data"] = idStr + ": " + in
-			if out, err := json.Marshal(msgJson); err != nil {
-				return
-			} else {
+			if out, err := json.Marshal(msgJson); err == nil {
 				msg.Message = out
 			}
 		}
