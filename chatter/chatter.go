@@ -7,24 +7,16 @@ import (
 )
 
 type Chatter struct {
-	rtw *rtw.RTW
 	clients map[rtw.ClientId]struct{}
+	*rtw.RTW
 }
 
 func NewChatter() *Chatter {
 	c := &Chatter{
 		clients: make(map[rtw.ClientId]struct{}),
 	}
-	c.rtw = rtw.NewRTW(c)
+	c.RTW = rtw.NewRTW(c)
 	return c
-}
-
-func (c *Chatter) Run() {
-	c.rtw.Run()
-}
-
-func (c *Chatter) Handler() func(*websocket.Conn) {
-	return c.rtw.WSHandler()
 }
 
 func (c *Chatter) Connect(ws *websocket.Conn) rtw.ClientId {
@@ -40,6 +32,6 @@ func (c *Chatter) Disconnect(id rtw.ClientId) {
 
 func (c *Chatter) Message(msg rtw.Message) {
 	for id, _ := range c.clients {
-		c.rtw.Send(id, msg)
+		c.Send(id, msg)
 	}
 }
