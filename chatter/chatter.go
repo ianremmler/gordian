@@ -24,6 +24,9 @@ func NewChatter() *Chatter {
 func (c *Chatter) Connect(ws *websocket.Conn) rtw.ClientId {
 	path := ws.Request().URL.Path
 	id := path[strings.LastIndex(path, "/") + 1:]
+	if id == "" {
+		return nil
+	}
 	c.clients[id] = struct{}{}
 	return id
 }

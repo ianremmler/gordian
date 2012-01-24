@@ -6,6 +6,10 @@ import (
 	"websocket"
 )
 
+const (
+	MaxMessageSize = 1024
+)
+
 type ClientId interface{}
 
 type MessageData []byte
@@ -24,7 +28,7 @@ type Handler interface {
 type clientInfo struct {
 	id       ClientId
 	toClient chan Message
-	isActive bool
+	isAlive bool
 }
 
 type RTW struct {
@@ -57,12 +61,15 @@ func (rtw *RTW) Send(id ClientId, msg Message) {
 func (rtw *RTW) WSHandler() func(ws *websocket.Conn) {
 	return func(ws *websocket.Conn) {
 		id := rtw.handler.Connect(ws)
+		if id == nil {
+			return
+		}
 		toClient := make(chan Message)
 		ci := clientInfo{id, toClient, true}
 		rtw.clientCtrl <- ci
-		go rtw.writeHandler(ws, ci)
-		rtw.readHandler(ws, ci)
-		ci.isActive = false
+		go rtw.writeToWS(ws, ci)
+		rtw.readFromWS(ws, ci)
+		ci.isAlive = false
 		rtw.handler.Disconnect(id)
 		rtw.clientCtrl <- ci
 	}
@@ -74,7 +81,7 @@ func (rtw *RTW) manageClients() {
 		case msg := <-rtw.fromClient:
 			rtw.handler.Message(msg)
 		case ci := <-rtw.clientCtrl:
-			if ci.isActive {
+			if ci.isAlive {
 				rtw.clients[ci.id] = ci
 			} else {
 				close(ci.toClient)
@@ -84,8 +91,8 @@ func (rtw *RTW) manageClients() {
 	}
 }
 
-func (rtw *RTW) readHandler(ws *websocket.Conn, ci clientInfo) {
-	msg := make(MessageData, 512) // XXX can size be dynamic ???
+func (rtw *RTW) readFromWS(ws *websocket.Conn, ci clientInfo) {
+	msg := make(MessageData, MaxMessageSize)
 	for {
 		n, err := ws.Read(msg)
 		switch err {
@@ -99,7 +106,7 @@ func (rtw *RTW) readHandler(ws *websocket.Conn, ci clientInfo) {
 	}
 }
 
-func (rtw *RTW) writeHandler(ws *websocket.Conn, ci clientInfo) {
+func (rtw *RTW) writeToWS(ws *websocket.Conn, ci clientInfo) {
 	for {
 		msg, ok := <-ci.toClient
 		if !ok {
