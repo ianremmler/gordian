@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	MaxMessageSize = 1024
+	DefaultMaxMsgSize = 1 << 16
 )
 
 type ClientId interface{}
@@ -36,6 +36,7 @@ type Gordian struct {
 	clientCtrl chan clientInfo
 	clients    map[ClientId]clientInfo
 	handler    Handler
+	maxMsgSize int
 }
 
 func NewGordian(h Handler) *Gordian {
@@ -44,8 +45,13 @@ func NewGordian(h Handler) *Gordian {
 		clientCtrl: make(chan clientInfo),
 		clients:    make(map[ClientId]clientInfo),
 		handler:    h,
+		maxMsgSize: DefaultMaxMsgSize,
 	}
 	return g
+}
+
+func (g *Gordian) SetMaxMsgSize(size int) {
+	g.maxMsgSize = size
 }
 
 func (g *Gordian) Run() {
@@ -92,7 +98,7 @@ func (g *Gordian) manageClients() {
 }
 
 func (g *Gordian) readFromWS(ws *websocket.Conn, ci clientInfo) {
-	msg := make(MessageData, MaxMessageSize)
+	msg := make(MessageData, g.maxMsgSize)
 	for {
 		n, err := ws.Read(msg)
 		switch err {
