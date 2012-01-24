@@ -6,25 +6,41 @@ import (
 	"websocket"
 )
 
+type ClientId interface{}
+
+type MessageData []byte
+
+type Message struct {
+	Id  ClientId
+	Message MessageData
+}
+
+type Handler interface {
+	Connect(ws *websocket.Conn) ClientId
+	Disconnect(id ClientId)
+	Message(msg Message)
+}
+
 type clientInfo struct {
-	input    chan []byte
+	id       ClientId
+	toClient chan Message
 	isActive bool
 }
 
 type RTW struct {
-	Handler    func(ws *websocket.Conn)
-	output     chan []byte
+	fromClient chan Message
 	clientCtrl chan clientInfo
-	clients    map[chan []byte]struct{}
+	clients    map[ClientId]clientInfo
+	handler    Handler
 }
 
-func NewRTW() *RTW {
+func NewRTW(h Handler) *RTW {
 	rtw := &RTW{
-		output:     make(chan []byte),
+		fromClient: make(chan Message),
 		clientCtrl: make(chan clientInfo),
-		clients:    make(map[chan []byte]struct{}),
+		clients:    make(map[ClientId]clientInfo),
+		handler:    h,
 	}
-	rtw.Handler = rtw.wsHandler()
 	return rtw
 }
 
@@ -32,41 +48,49 @@ func (rtw *RTW) Run() {
 	go rtw.manageClients()
 }
 
-func (rtw *RTW) wsHandler() func(ws *websocket.Conn) {
+func (rtw *RTW) Send(id ClientId, msg Message) {
+	if ci, ok := rtw.clients[id]; ok {
+		ci.toClient <- msg
+	}
+}
+
+func (rtw *RTW) WSHandler() func(ws *websocket.Conn) {
 	return func(ws *websocket.Conn) {
-		input := make(chan []byte)
-		rtw.clientCtrl <- clientInfo{input, true}
-		go rtw.writeHandler(ws, input)
-		rtw.readHandler(ws)
-		rtw.clientCtrl <- clientInfo{input, false}
+		id := rtw.handler.Connect(ws)
+		toClient := make(chan Message)
+		ci := clientInfo{id, toClient, true}
+		rtw.clientCtrl <- ci
+		go rtw.writeHandler(ws, ci)
+		rtw.readHandler(ws, ci)
+		ci.isActive = false
+		rtw.handler.Disconnect(id)
+		rtw.clientCtrl <- ci
 	}
 }
 
 func (rtw *RTW) manageClients() {
 	for {
 		select {
-		case msg := <-rtw.output:
-			for input, _ := range rtw.clients {
-				input <- msg
-			}
+		case msg := <-rtw.fromClient:
+			rtw.handler.Message(msg)
 		case ci := <-rtw.clientCtrl:
 			if ci.isActive {
-				rtw.clients[ci.input] = struct{}{}
+				rtw.clients[ci.id] = ci
 			} else {
-				close(ci.input)
-				delete(rtw.clients, ci.input)
+				close(ci.toClient)
+				delete(rtw.clients, ci.id)
 			}
 		}
 	}
 }
 
-func (rtw *RTW) readHandler(ws *websocket.Conn) {
-	msg := make([]byte, 512)
+func (rtw *RTW) readHandler(ws *websocket.Conn, ci clientInfo) {
+	msg := make(MessageData, 512) // XXX can size be dynamic ???
 	for {
 		n, err := ws.Read(msg)
 		switch err {
 		case nil:
-			rtw.output <- msg[:n]
+			rtw.fromClient <- Message{ci.id, msg[:n]}
 		case io.EOF:
 			return
 		default:
@@ -75,13 +99,13 @@ func (rtw *RTW) readHandler(ws *websocket.Conn) {
 	}
 }
 
-func (rtw *RTW) writeHandler(ws *websocket.Conn, input chan []byte) {
+func (rtw *RTW) writeHandler(ws *websocket.Conn, ci clientInfo) {
 	for {
-		msg, ok := <-input
+		msg, ok := <-ci.toClient
 		if !ok {
 			return
 		}
-		if _, err := ws.Write(msg); err != nil {
+		if _, err := ws.Write(msg.Message); err != nil {
 			fmt.Println(err)
 		}
 	}
