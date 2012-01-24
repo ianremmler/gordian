@@ -15,7 +15,7 @@ type ClientId interface{}
 type MessageData []byte
 
 type Message struct {
-	Id  ClientId
+	Id      ClientId
 	Message MessageData
 }
 
@@ -28,7 +28,7 @@ type Handler interface {
 type clientInfo struct {
 	id       ClientId
 	toClient chan Message
-	isAlive bool
+	isAlive  bool
 }
 
 type RTW struct {

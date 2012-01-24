@@ -1,8 +1,8 @@
 package main
 
 import (
-	"rtw/chatter"
 	"net/http"
+	"rtw/chatter"
 	"websocket"
 )
 

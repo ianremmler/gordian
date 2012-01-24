@@ -1,11 +1,11 @@
 package chatter
 
 import (
-	"websocket"
-	"strings"
 	"encoding/json"
 	"fmt"
 	"rtw/rtw"
+	"strings"
+	"websocket"
 )
 
 type Chatter struct {
@@ -23,7 +23,7 @@ func NewChatter() *Chatter {
 
 func (c *Chatter) Connect(ws *websocket.Conn) rtw.ClientId {
 	path := ws.Request().URL.Path
-	id := path[strings.LastIndex(path, "/") + 1:]
+	id := path[strings.LastIndex(path, "/")+1:]
 	if id == "" {
 		return nil
 	}
