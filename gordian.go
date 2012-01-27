@@ -3,9 +3,9 @@
 package gordian
 
 import (
+	"code.google.com/p/go.net/websocket"
 	"fmt"
 	"io"
-	"websocket"
 )
 
 const (
@@ -24,7 +24,7 @@ type MessageData []byte
 // Message is used to transfer messages between the application and clients.
 type Message struct {
 	// Id identifies the client that sent the message.
-	Id      ClientId
+	Id ClientId
 	// Message contains the data payload.
 	Message MessageData
 }
@@ -45,11 +45,11 @@ type Handler interface {
 // clientInfo conveys information about a client's state to clientManager.
 type clientInfo struct {
 	// id is the identifier supplied by the application for this client.
-	id       ClientId
+	id ClientId
 	// toClient is used to deliver messages to the client.
 	toClient chan Message
 	// isAlive indicates whether the client just connected or disconnected.
-	isAlive  bool
+	isAlive bool
 }
 
 // The Gordian class is responsible for managing client connections and
@@ -60,10 +60,10 @@ type Gordian struct {
 	// clientCtrl sends client connection events and messages to clientManager.
 	clientCtrl chan clientInfo
 	// clients maps an id to a client's information.
-	clients    map[ClientId]clientInfo
+	clients map[ClientId]clientInfo
 	// handler is an object supplied by the application that implements the
 	// Handler interface, used to events and message to the application.
-	handler    Handler
+	handler Handler
 	// maxMsgSize is the maximum message size.
 	maxMsgSize int
 }

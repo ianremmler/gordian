@@ -1,11 +1,11 @@
 package chatter
 
 import (
+	"code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"fmt"
 	"github.com/ianremmler/gordian"
 	"strings"
-	"websocket"
 )
 
 type Chatter struct {
