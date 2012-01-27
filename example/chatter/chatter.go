@@ -2,9 +2,10 @@ package chatter
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"github.com/ianremmler/gordian"
+
 	"encoding/json"
 	"fmt"
-	"github.com/ianremmler/gordian"
 	"strings"
 )
 

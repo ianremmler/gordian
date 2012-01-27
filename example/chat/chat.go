@@ -3,6 +3,7 @@ package main
 import (
 	"code.google.com/p/go.net/websocket"
 	"github.com/ianremmler/gordian/example/chatter"
+
 	"net/http"
 	"os"
 )
