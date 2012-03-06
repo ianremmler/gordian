@@ -36,7 +36,7 @@ type Handler interface {
 	// Connect is called when a new websocket connection is initiated.  The
 	// application may use any method to generate a unique ClientId for
 	// each client.
-	Connect(ws *websocket.Conn) ClientId
+	Connect(ws *websocket.Conn) (ClientId, error)
 	// Disconnect is called when a websocket connection ends.
 	Disconnect(id ClientId)
 	// Message is called to handle incoming messages from clients.
@@ -58,7 +58,8 @@ type clientInfo struct {
 type Gordian struct {
 	// fromClient sends messages from clients to gordian.
 	fromClient chan Message
-	// clientCtrl sends client connection events and messages to clientManager.
+	// clientCtrl sends client connection events and messages to
+	// clientManager.
 	clientCtrl chan clientInfo
 	// clients maps an id to a client's information.
 	clients map[ClientId]clientInfo
@@ -104,8 +105,8 @@ func (g *Gordian) Send(id ClientId, msg Message) {
 // a new websocket connection.
 func (g *Gordian) WSHandler() func(ws *websocket.Conn) {
 	return func(ws *websocket.Conn) {
-		id := g.handler.Connect(ws)
-		if id == nil {
+		id, err := g.handler.Connect(ws)
+		if err != nil {
 			return
 		}
 		toClient := make(chan Message)
