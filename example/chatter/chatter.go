@@ -36,7 +36,7 @@ func (c *Chatter) Disconnect(id gordian.ClientId) {
 	delete(c.clients, id)
 }
 
-func (c *Chatter) Message(msg gordian.Message) {
+func (c *Chatter) HandleMessage(msg gordian.Message) {
 	var msgJson map[string]string
 	if err := json.Unmarshal(msg.Message, &msgJson); err != nil {
 		fmt.Println(err)

@@ -39,8 +39,8 @@ type Handler interface {
 	Connect(ws *websocket.Conn) ClientId
 	// Disconnect is called when a websocket connection ends.
 	Disconnect(id ClientId)
-	// Message is called to handle incoming messages from clients.
-	Message(msg Message)
+	// HandleMessage is called to handle incoming messages from clients.
+	HandleMessage(msg Message)
 }
 
 // clientInfo conveys information about a client's state to clientManager.
@@ -125,7 +125,7 @@ func (g *Gordian) manageClients() {
 	for {
 		select {
 		case msg := <-g.fromClient:
-			g.handler.Message(msg)
+			g.handler.HandleMessage(msg)
 		case ci := <-g.clientCtrl:
 			if ci.isAlive {
 				g.clients[ci.id] = ci
