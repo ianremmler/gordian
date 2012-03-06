@@ -5,6 +5,7 @@ import (
 	"github.com/ianremmler/gordian"
 
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -22,14 +23,14 @@ func NewChatter() *Chatter {
 	return c
 }
 
-func (c *Chatter) Connect(ws *websocket.Conn) gordian.ClientId {
+func (c *Chatter) Connect(ws *websocket.Conn) (gordian.ClientId, error) {
 	path := ws.Request().URL.Path
 	id := path[strings.LastIndex(path, "/")+1:]
 	if id == "" {
-		return nil
+		return nil, errors.New("Invalid ID")
 	}
 	c.clients[id] = struct{}{}
-	return id
+	return id, nil
 }
 
 func (c *Chatter) Disconnect(id gordian.ClientId) {
