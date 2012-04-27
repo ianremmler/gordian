@@ -17,7 +17,7 @@ func NewChatter() *Chatter {
 	c := &Chatter{
 		clients: make(map[string]struct{}),
 	}
-	c.Gordian = gordian.NewGordian(c)
+	c.Gordian = gordian.New(c)
 	return c
 }
 
@@ -35,13 +35,13 @@ func (c *Chatter) Disconnect(id string) {
 	delete(c.clients, id)
 }
 
-func (c *Chatter) HandleMessage(msg gordian.Message) {
+func (c *Chatter) HandleMessage(msg *gordian.Message) {
 	data := msg.Data.(map[string]interface{})
 	if in, ok := data["data"].(string); ok {
 		data["data"] = msg.Id + ": " + in
-		msg.Data = data
+		out := &gordian.Message{msg.Id, data}
 		for id, _ := range c.clients {
-			c.Send(id, msg)
+			c.Send(id, out)
 		}
 	}
 }
