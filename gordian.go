@@ -9,25 +9,12 @@ import (
 	"io"
 )
 
-const (
-	// Default maximum message size is 64kB.
-	DefaultMaxMsgSize = 1 << 16
-)
-
-// ClientId is used to identifiy gordian clients.  It can be any type that can
-// be used as a map key.  A ClientId is supplied by the application when a new
-// connection is established.
-type ClientId interface{}
-
-// MessageData is a buffer that contains message data.
-type MessageData []byte
-
 // Message is used to transfer messages between the application and clients.
 type Message struct {
 	// Id identifies the client that sent the message.
-	Id ClientId
-	// Message contains the data payload.
-	Message MessageData
+	Id string
+	// Data contains the message payload.
+	Data interface{}
 }
 
 // Handler defines the interface used by gordian to interact with the
@@ -36,9 +23,9 @@ type Handler interface {
 	// Connect is called when a new websocket connection is initiated.  The
 	// application may use any method to generate a unique ClientId for
 	// each client.
-	Connect(ws *websocket.Conn) (ClientId, error)
+	Connect(ws *websocket.Conn) (string, error)
 	// Disconnect is called when a websocket connection ends.
-	Disconnect(id ClientId)
+	Disconnect(id string)
 	// HandleMessage is called to handle incoming messages from clients.
 	HandleMessage(msg Message)
 }
@@ -46,7 +33,7 @@ type Handler interface {
 // clientInfo conveys information about a client's state to clientManager.
 type clientInfo struct {
 	// id is the identifier supplied by the application for this client.
-	id ClientId
+	id string
 	// toClient is used to deliver messages to the client.
 	toClient chan Message
 	// isAlive indicates whether the client just connected or disconnected.
@@ -62,12 +49,10 @@ type Gordian struct {
 	// clientManager.
 	clientCtrl chan clientInfo
 	// clients maps an id to a client's information.
-	clients map[ClientId]clientInfo
+	clients map[string]clientInfo
 	// handler is an object supplied by the application that implements the
 	// Handler interface, used to events and message to the application.
 	handler Handler
-	// maxMsgSize is the maximum message size.
-	maxMsgSize int
 }
 
 // NewGordian constructs a Gordian object.
@@ -75,17 +60,10 @@ func NewGordian(h Handler) *Gordian {
 	g := &Gordian{
 		fromClient: make(chan Message),
 		clientCtrl: make(chan clientInfo),
-		clients:    make(map[ClientId]clientInfo),
+		clients:    make(map[string]clientInfo),
 		handler:    h,
-		maxMsgSize: DefaultMaxMsgSize,
 	}
 	return g
-}
-
-// SetMaxMsgSize sets the maximum size of messages.
-// NOTE: This may only be called before Run.
-func (g *Gordian) SetMaxMsgSize(size int) {
-	g.maxMsgSize = size
 }
 
 // Run initiates the goroutine that manages client connections and message
@@ -95,7 +73,7 @@ func (g *Gordian) Run() {
 }
 
 // Send passes a message to the specified client.
-func (g *Gordian) Send(id ClientId, msg Message) {
+func (g *Gordian) Send(id string, msg Message) {
 	if ci, ok := g.clients[id]; ok {
 		ci.toClient <- msg
 	}
@@ -140,12 +118,12 @@ func (g *Gordian) manageClients() {
 
 // readFromWS reads a message from the client and passes it to clientManager.
 func (g *Gordian) readFromWS(ws *websocket.Conn, ci clientInfo) {
-	msg := make(MessageData, g.maxMsgSize)
 	for {
-		n, err := ws.Read(msg)
+		var data interface{}
+		err := websocket.JSON.Receive(ws, &data)
 		switch err {
 		case nil:
-			g.fromClient <- Message{ci.id, msg[:n]}
+			g.fromClient <- Message{ci.id, data}
 		case io.EOF:
 			return
 		default:
@@ -162,7 +140,7 @@ func (g *Gordian) writeToWS(ws *websocket.Conn, ci clientInfo) {
 		if !ok {
 			return
 		}
-		if _, err := ws.Write(msg.Message); err != nil {
+		if err := websocket.JSON.Send(ws, msg.Data); err != nil {
 			fmt.Println(err)
 		}
 	}

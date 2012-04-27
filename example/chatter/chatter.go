@@ -4,54 +4,44 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"github.com/ianremmler/gordian"
 
-	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 )
 
 type Chatter struct {
-	clients map[gordian.ClientId]struct{}
+	clients map[string]struct{}
 	*gordian.Gordian
 }
 
 func NewChatter() *Chatter {
 	c := &Chatter{
-		clients: make(map[gordian.ClientId]struct{}),
+		clients: make(map[string]struct{}),
 	}
 	c.Gordian = gordian.NewGordian(c)
 	return c
 }
 
-func (c *Chatter) Connect(ws *websocket.Conn) (gordian.ClientId, error) {
+func (c *Chatter) Connect(ws *websocket.Conn) (string, error) {
 	path := ws.Request().URL.Path
 	id := path[strings.LastIndex(path, "/")+1:]
 	if id == "" {
-		return nil, errors.New("Invalid ID")
+		return "", errors.New("Invalid ID")
 	}
 	c.clients[id] = struct{}{}
 	return id, nil
 }
 
-func (c *Chatter) Disconnect(id gordian.ClientId) {
+func (c *Chatter) Disconnect(id string) {
 	delete(c.clients, id)
 }
 
 func (c *Chatter) HandleMessage(msg gordian.Message) {
-	var msgJson map[string]string
-	if err := json.Unmarshal(msg.Message, &msgJson); err != nil {
-		fmt.Println(err)
-		return
-	}
-	if in, ok := msgJson["data"]; ok {
-		if idStr, ok := msg.Id.(string); ok {
-			msgJson["data"] = idStr + ": " + in
-			if out, err := json.Marshal(msgJson); err == nil {
-				msg.Message = out
-			}
+	data := msg.Data.(map[string]interface{})
+	if in, ok := data["data"].(string); ok {
+		data["data"] = msg.Id + ": " + in
+		msg.Data = data
+		for id, _ := range c.clients {
+			c.Send(id, msg)
 		}
-	}
-	for id, _ := range c.clients {
-		c.Send(id, msg)
 	}
 }
