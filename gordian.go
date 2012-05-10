@@ -1,5 +1,3 @@
-// The gordian package provides a simple framework for building multiclient
-// websocket applications.
 package gordian
 
 import (
@@ -9,12 +7,18 @@ import (
 	"io"
 )
 
+// ClientId identifies a websocket client.  It must be usable as a map key
+type ClientId interface{}
+
+// MessageData is the unmarshalled paylooad of an websocket message
+type MessageData interface{}
+
 // Message is used to transfer messages between the application and clients.
 type Message struct {
 	// Id identifies the client that sent the message.
-	Id string
+	Id ClientId
 	// Data contains the message payload.
-	Data interface{}
+	Data MessageData
 }
 
 // Handler defines the interface used by gordian to interact with the
@@ -23,9 +27,9 @@ type Handler interface {
 	// Connect is called when a new websocket connection is initiated.
 	// The application must generate a unique id for each client.
 	// If an error is returned, the connection is dropped.
-	Connect(ws *websocket.Conn) (string, error)
+	Connect(ws *websocket.Conn) (ClientId, error)
 	// Disconnect is called when a websocket connection ends.
-	Disconnect(id string)
+	Disconnect(id ClientId)
 	// HandleMessage is called to handle incoming messages from clients.
 	HandleMessage(msg *Message)
 }
@@ -33,7 +37,7 @@ type Handler interface {
 // clientInfo conveys information about a client's state to clientManager.
 type clientInfo struct {
 	// id is the identifier supplied by the application for this client.
-	id string
+	id ClientId
 	// toClient is used to deliver messages to the client.
 	toClient chan *Message
 	// isAlive indicates whether the client just connected or disconnected.
@@ -49,7 +53,7 @@ type Gordian struct {
 	// clientManager.
 	clientCtrl chan *clientInfo
 	// clients maps an id to a client's information.
-	clients map[string]clientInfo
+	clients map[ClientId]clientInfo
 	// Handler is an object supplied by the application that handles
 	// events and message passed to it by gordian.
 	handler Handler
@@ -60,7 +64,7 @@ func New(h Handler) *Gordian {
 	g := &Gordian{
 		fromClient: make(chan *Message),
 		clientCtrl: make(chan *clientInfo),
-		clients:    make(map[string]clientInfo),
+		clients:    make(map[ClientId]clientInfo),
 		handler:    h,
 	}
 	return g
@@ -72,7 +76,7 @@ func (g *Gordian) Run() {
 }
 
 // Send passes a message to the specified client.
-func (g *Gordian) Send(id string, msg *Message) {
+func (g *Gordian) Send(id ClientId, msg *Message) {
 	if ci, ok := g.clients[id]; ok {
 		ci.toClient <- msg
 	}
@@ -118,7 +122,7 @@ func (g *Gordian) manageClients() {
 // readFromWS reads a message from the client and passes it to clientManager.
 func (g *Gordian) readFromWS(ws *websocket.Conn, ci *clientInfo) {
 	for {
-		var data interface{}
+		var data MessageData
 		err := websocket.JSON.Receive(ws, &data)
 		switch err {
 		case nil:
