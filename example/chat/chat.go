@@ -1,24 +1,72 @@
-package main
+package chat
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"github.com/ianremmler/gordian/example/chatter"
+	"github.com/ianremmler/gordian"
 
-	"net/http"
-	"os"
+	"errors"
+	"strings"
 )
 
-func main() {
-	c := chatter.NewChatter()
-	c.Run()
+type Chat struct {
+	clients map[gordian.ClientId]struct{}
+	*gordian.Gordian
+}
 
-	chatDir := os.Getenv("CHAT_DIR")
-	if chatDir == "" {
-		chatDir = "/tmp"
+func NewChat() *Chat {
+	c := &Chat{
+		clients: make(map[gordian.ClientId]struct{}),
+		Gordian: gordian.New(),
 	}
-	http.Handle("/chat/", websocket.Handler(c.WSHandler()))
-	http.Handle("/", http.FileServer(http.Dir(chatDir)))
-	if err := http.ListenAndServe(":12345", nil); err != nil {
-		panic("ListenAndServe: " + err.Error())
+	return c
+}
+
+func (c *Chat) Run() {
+	c.Gordian.Run()
+
+	go func() {
+		for {
+			select {
+			case ws := <-c.Connect:
+				id, err := c.connect(ws)
+				c.Manage <- &gordian.ClientInfo{id, err == nil}
+			case ci := <-c.Manage:
+				if !ci.IsAlive {
+					c.disconnect(ci.Id)
+				}
+			case m := <-c.Messages:
+				c.handleMessage(m)
+			}
+		}
+	}()
+}
+
+func (c *Chat) connect(ws *websocket.Conn) (gordian.ClientId, error) {
+	path := ws.Request().URL.Path
+	id := path[strings.LastIndex(path, "/")+1:]
+	if id == "" {
+		return "", errors.New("Invalid ID")
+	}
+	c.clients[id] = struct{}{}
+	return id, nil
+}
+
+func (c *Chat) disconnect(id gordian.ClientId) {
+	delete(c.clients, id)
+}
+
+func (c *Chat) send(id gordian.ClientId, msg *gordian.Message) {
+	c.Messages <- msg
+}
+
+func (c *Chat) handleMessage(msg *gordian.Message) {
+	data := msg.Data.(map[string]interface{})
+	if in, ok := data["data"].(string); ok {
+		data["data"] = msg.From.(string) + ": " + in
+		out := &gordian.Message{From: msg.From, Data: data}
+		for id, _ := range c.clients {
+			out.To = id
+			c.send(id, out)
+		}
 	}
 }
