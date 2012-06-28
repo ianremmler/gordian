@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>sim</title>
+</head>
+<body>
+
+<h1 id="content">blah</h1>
+
+<script src="http://code.jquery.com/jquery-1.7.2.js"></script>
+<script src="http://jquery-json.googlecode.com/files/jquery.json-2.3.min.js"></script>
+<script src="http://jquery-websocket.googlecode.com/files/jquery.websocket-0.0.1.js"></script>
+
+<script>
+var ws = $.websocket("ws://tau:12345/sim/", {
+	events: {
+		message: function(e) { $('#content').html('<h1>' + e.data + '</h1>') }
+	}
+});
+</script>
+
+</body>
+</html>
