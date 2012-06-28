@@ -68,10 +68,6 @@ func (g *Gordian) Run() {
 	go g.manageClients()
 }
 
-// Send passes a message to the specified client.
-func (g *Gordian) Send(id ClientId, msg *Message) {
-}
-
 // WSHandler returns a function to be called by http.ListenAndServe to handle
 // a new websocket connection.
 func (g *Gordian) WSHandler() func(ws *websocket.Conn) {

@@ -6,6 +6,8 @@ import (
 
 	"errors"
 	"strings"
+
+	"fmt"
 )
 
 type Chat struct {
@@ -13,7 +15,7 @@ type Chat struct {
 	*gordian.Gordian
 }
 
-func NewChat() *Chat {
+func New() *Chat {
 	c := &Chat{
 		clients: make(map[gordian.ClientId]struct{}),
 		Gordian: gordian.New(),
@@ -55,7 +57,8 @@ func (c *Chat) disconnect(id gordian.ClientId) {
 	delete(c.clients, id)
 }
 
-func (c *Chat) send(id gordian.ClientId, msg *gordian.Message) {
+func (c *Chat) send(msg *gordian.Message) {
+	fmt.Println("sending:", msg)
 	c.Messages <- msg
 }
 
@@ -66,7 +69,7 @@ func (c *Chat) handleMessage(msg *gordian.Message) {
 		out := &gordian.Message{From: msg.From, Data: data}
 		for id, _ := range c.clients {
 			out.To = id
-			c.send(id, out)
+			c.send(out)
 		}
 	}
 }

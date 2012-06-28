@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	c := chat.NewChat()
+	c := chat.New()
 	c.Run()
 
 	chatDir := os.Getenv("CHAT_DIR")
