@@ -10,7 +10,7 @@ import (
 // ClientId identifies a websocket client.  It must be usable as a map key
 type ClientId interface{}
 
-// MessageData is the unmarshalled paylooad of an websocket message
+// MessageData is the unmarshalled payload of an websocket message
 type MessageData interface{}
 
 // Message is used to transfer messages between the application and clients.

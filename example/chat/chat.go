@@ -24,23 +24,24 @@ func New() *Chat {
 }
 
 func (c *Chat) Run() {
+	go c.run()
 	c.Gordian.Run()
+}
 
-	go func() {
-		for {
-			select {
-			case ws := <-c.Connect:
-				id, err := c.connect(ws)
-				c.Manage <- &gordian.ClientInfo{id, err == nil}
-			case ci := <-c.Manage:
-				if !ci.IsAlive {
-					c.disconnect(ci.Id)
-				}
-			case m := <-c.Messages:
-				c.handleMessage(m)
+func (c *Chat) run() {
+	for {
+		select {
+		case ws := <-c.Connect:
+			id, err := c.connect(ws)
+			c.Manage <- &gordian.ClientInfo{id, err == nil}
+		case ci := <-c.Manage:
+			if !ci.IsAlive {
+				c.disconnect(ci.Id)
 			}
+		case m := <-c.Messages:
+			c.handleMessage(m)
 		}
-	}()
+	}
 }
 
 func (c *Chat) connect(ws *websocket.Conn) (gordian.ClientId, error) {
