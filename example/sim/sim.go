@@ -3,7 +3,6 @@ package sim
 import (
 	"github.com/ianremmler/gordian"
 
-	"fmt"
 	"strconv"
 	"time"
 )
@@ -11,6 +10,7 @@ import (
 type Sim struct {
 	clients map[gordian.ClientId]struct{}
 	ticker  <-chan time.Time
+	curId   int
 	*gordian.Gordian
 }
 
@@ -35,9 +35,9 @@ func (s *Sim) run() {
 	for {
 		select {
 		case <-s.Connect:
-			id := len(s.clients) + 1
-			s.clients[id] = struct{}{}
-			s.Manage <- &gordian.ClientInfo{id, true}
+			s.curId++
+			s.clients[s.curId] = struct{}{}
+			s.Manage <- &gordian.ClientInfo{s.curId, true}
 		case ci := <-s.Manage:
 			if !ci.IsAlive {
 				delete(s.clients, ci.Id)
