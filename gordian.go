@@ -7,6 +7,11 @@ import (
 	"io"
 )
 
+const (
+	CONNECT = iota
+	DISCONNECT
+)
+
 // ClientId identifies a websocket client.  It must be usable as a map key
 type ClientId interface{}
 
@@ -24,8 +29,8 @@ type Message struct {
 }
 
 type ClientInfo struct {
-	Id      ClientId
-	IsAlive bool
+	Id       ClientId
+	CtrlType int
 }
 
 // clientData conveys information about a client's state to clientManager.
@@ -39,9 +44,9 @@ type clientData struct {
 // The Gordian class is responsible for managing client connections and
 // reading and distributing client messages.
 type Gordian struct {
-	Messages chan *Message
 	Connect  chan *websocket.Conn
-	Manage   chan *ClientInfo
+	Control  chan *ClientInfo
+	Messages chan *Message
 
 	// clientCtrl sends client connection events and messages to
 	// clientManager.
@@ -54,8 +59,7 @@ type Gordian struct {
 func New() *Gordian {
 	g := &Gordian{
 		Messages: make(chan *Message),
-		Connect:  make(chan *websocket.Conn),
-		Manage:   make(chan *ClientInfo),
+		Control:  make(chan *ClientInfo),
 
 		clientCtrl: make(chan *clientData),
 		clients:    make(map[ClientId]clientData),
@@ -73,8 +77,8 @@ func (g *Gordian) Run() {
 func (g *Gordian) WSHandler() func(ws *websocket.Conn) {
 	return func(ws *websocket.Conn) {
 		g.Connect <- ws
-		ci := <-g.Manage
-		if ci.Id == nil || !ci.IsAlive {
+		ci := <-g.Control
+		if ci.Id == nil || ci.CtrlType != CONNECT {
 			return
 		}
 		toClient := make(chan *Message)
@@ -82,9 +86,9 @@ func (g *Gordian) WSHandler() func(ws *websocket.Conn) {
 		g.clientCtrl <- cd
 		go g.writeToWS(ws, cd)
 		g.readFromWS(ws, cd)
-		ci.IsAlive = false
-		g.Manage <- ci
-		cd.IsAlive = false
+		ci.CtrlType = DISCONNECT
+		g.Control <- ci
+		cd.CtrlType = DISCONNECT
 		g.clientCtrl <- cd
 	}
 }
@@ -99,7 +103,7 @@ func (g *Gordian) manageClients() {
 				cd.toClient <- msg
 			}
 		case cd := <-g.clientCtrl:
-			if cd.IsAlive {
+			if cd.CtrlType == CONNECT {
 				g.clients[cd.Id] = *cd
 			} else {
 				close(cd.toClient)

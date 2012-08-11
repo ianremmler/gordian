@@ -6,7 +6,6 @@ import (
 
 	"errors"
 	"strings"
-
 	"fmt"
 )
 
@@ -33,9 +32,13 @@ func (c *Chat) run() {
 		select {
 		case ws := <-c.Connect:
 			id, err := c.connect(ws)
-			c.Manage <- &gordian.ClientInfo{id, err == nil}
-		case ci := <-c.Manage:
-			if !ci.IsAlive {
+			ci := &gordian.ClientInfo{id, gordian.CONNECT}
+			if err != nil {
+				ci.CtrlType = gordian.DISCONNECT
+			}
+			c.Control <- ci
+		case ci := <-c.Control:
+			if ci.CtrlType == gordian.DISCONNECT {
 				c.disconnect(ci.Id)
 			}
 		case m := <-c.Messages:

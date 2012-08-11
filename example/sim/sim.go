@@ -37,9 +37,9 @@ func (s *Sim) run() {
 		case <-s.Connect:
 			s.curId++
 			s.clients[s.curId] = struct{}{}
-			s.Manage <- &gordian.ClientInfo{s.curId, true}
-		case ci := <-s.Manage:
-			if !ci.IsAlive {
+			s.Control <- &gordian.ClientInfo{s.curId, gordian.CONNECT}
+		case ci := <-s.Control:
+			if ci.CtrlType == gordian.DISCONNECT {
 				delete(s.clients, ci.Id)
 			}
 		case <-s.ticker:
