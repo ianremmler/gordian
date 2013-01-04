@@ -28,41 +28,31 @@ type Message struct {
 	Data MessageData
 }
 
-type ClientInfo struct {
+// ClientData holds information about a client's state
+type ClientData struct {
 	Id       ClientId
 	CtrlType int
-}
-
-// clientData conveys information about a client's state to clientManager.
-type clientData struct {
-	// toClient is used to deliver messages to the client.
 	toClient chan *Message
-
-	ClientInfo
 }
 
-// The Gordian class is responsible for managing client connections and
-// reading and distributing client messages.
+// The Gordian class is responsible for managing client connections and reading
+// and distributing client messages.
 type Gordian struct {
-	Connect  chan *websocket.Conn
-	Control  chan *ClientInfo
-	Messages chan *Message
-
-	// clientCtrl sends client connection events and messages to
-	// clientManager.
-	clientCtrl chan *clientData
-	// clients maps an id to a client's information.
-	clients map[ClientId]clientData
+	Connect    chan *websocket.Conn
+	Control    chan *ClientData
+	Messages   chan *Message
+	clientCtrl chan *ClientData
+	clients    map[ClientId]ClientData
 }
 
 // New constructs a Gordian object.
 func New() *Gordian {
 	g := &Gordian{
-		Messages: make(chan *Message),
-		Control:  make(chan *ClientInfo),
-
-		clientCtrl: make(chan *clientData),
-		clients:    make(map[ClientId]clientData),
+		Connect:    make(chan *websocket.Conn),
+		Control:    make(chan *ClientData),
+		Messages:   make(chan *Message),
+		clientCtrl: make(chan *ClientData),
+		clients:    make(map[ClientId]ClientData),
 	}
 	return g
 }
@@ -72,24 +62,23 @@ func (g *Gordian) Run() {
 	go g.manageClients()
 }
 
-// WSHandler returns a function to be called by http.ListenAndServe to handle
-// a new websocket connection.
-func (g *Gordian) WSHandler() func(ws *websocket.Conn) {
-	return func(ws *websocket.Conn) {
-		g.Connect <- ws
-		ci := <-g.Control
-		if ci.Id == nil || ci.CtrlType != CONNECT {
+// WSHandler returns a function to be called by http.ListenAndServe to handle a
+// new websocket connection.
+func (g *Gordian) WSHandler() func(conn *websocket.Conn) {
+	return func(conn *websocket.Conn) {
+		g.Connect <- conn
+		clientData := <-g.Control
+		if clientData.Id == nil || clientData.CtrlType != CONNECT {
 			return
 		}
-		toClient := make(chan *Message)
-		cd := &clientData{toClient, *ci}
-		g.clientCtrl <- cd
-		go g.writeToWS(ws, cd)
-		g.readFromWS(ws, cd)
-		ci.CtrlType = DISCONNECT
-		g.Control <- ci
-		cd.CtrlType = DISCONNECT
-		g.clientCtrl <- cd
+		clientData.toClient = make(chan *Message)
+		g.clientCtrl <- clientData
+		go g.writeToWS(conn, clientData)
+		g.readFromWS(conn, clientData)
+		clientData.CtrlType = DISCONNECT
+		g.Control <- clientData
+		clientData.CtrlType = DISCONNECT
+		g.clientCtrl <- clientData
 	}
 }
 
@@ -99,28 +88,28 @@ func (g *Gordian) manageClients() {
 	for {
 		select {
 		case msg := <-g.Messages:
-			if cd, ok := g.clients[msg.To]; ok {
-				cd.toClient <- msg
+			if clientData, ok := g.clients[msg.To]; ok {
+				clientData.toClient <- msg
 			}
-		case cd := <-g.clientCtrl:
-			if cd.CtrlType == CONNECT {
-				g.clients[cd.Id] = *cd
+		case clientData := <-g.clientCtrl:
+			if clientData.CtrlType == CONNECT {
+				g.clients[clientData.Id] = *clientData
 			} else {
-				close(cd.toClient)
-				delete(g.clients, cd.Id)
+				close(clientData.toClient)
+				delete(g.clients, clientData.Id)
 			}
 		}
 	}
 }
 
 // readFromWS reads a message from the client and passes it to clientManager.
-func (g *Gordian) readFromWS(ws *websocket.Conn, cd *clientData) {
+func (g *Gordian) readFromWS(conn *websocket.Conn, clientData *ClientData) {
 	for {
 		var data MessageData
-		err := websocket.JSON.Receive(ws, &data)
+		err := websocket.JSON.Receive(conn, &data)
 		switch err {
 		case nil:
-			g.Messages <- &Message{cd.Id, nil, data}
+			g.Messages <- &Message{clientData.Id, nil, data}
 		case io.EOF:
 			return
 		default:
@@ -130,13 +119,13 @@ func (g *Gordian) readFromWS(ws *websocket.Conn, cd *clientData) {
 }
 
 // writeToWS gets messages from clientManager and sends them to the client.
-func (g *Gordian) writeToWS(ws *websocket.Conn, cd *clientData) {
+func (g *Gordian) writeToWS(conn *websocket.Conn, clientData *ClientData) {
 	for {
-		msg, ok := <-cd.toClient
+		msg, ok := <-clientData.toClient
 		if !ok {
 			return
 		}
-		if err := websocket.JSON.Send(ws, msg.Data); err != nil {
+		if err := websocket.JSON.Send(conn, msg.Data); err != nil {
 			fmt.Println(err)
 		}
 	}
