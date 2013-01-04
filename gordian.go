@@ -9,107 +9,90 @@ import (
 
 const (
 	CONNECT = iota
-	DISCONNECT
+	REGISTER
+	CLOSE
 )
 
-// ClientId identifies a websocket client.  It must be usable as a map key
 type ClientId interface{}
-
-// MessageData is the unmarshalled payload of an websocket message
 type MessageData interface{}
 
-// Message is used to transfer messages between the application and clients.
 type Message struct {
-	// From identifies the client that sent the message.
 	From ClientId
-	// To identifies the client that receives the message.
-	To ClientId
-	// Data contains the message payload.
+	To   ClientId
 	Data MessageData
 }
 
-// ClientData holds information about a client's state
-type ClientData struct {
-	Id       ClientId
-	CtrlType int
-	toClient chan *Message
+type Client struct {
+	Id      ClientId
+	Ctrl    int
+	Conn    *websocket.Conn
+	message chan *Message
 }
 
-// The Gordian class is responsible for managing client connections and reading
-// and distributing client messages.
 type Gordian struct {
-	Connect    chan *websocket.Conn
-	Control    chan *ClientData
-	Messages   chan *Message
-	clientCtrl chan *ClientData
-	clients    map[ClientId]ClientData
+	Control chan *Client
+	Message chan *Message
+	manage  chan *Client
+	clients map[ClientId]*Client
 }
 
-// New constructs a Gordian object.
 func New() *Gordian {
 	g := &Gordian{
-		Connect:    make(chan *websocket.Conn),
-		Control:    make(chan *ClientData),
-		Messages:   make(chan *Message),
-		clientCtrl: make(chan *ClientData),
-		clients:    make(map[ClientId]ClientData),
+		Control: make(chan *Client),
+		Message: make(chan *Message),
+		manage:  make(chan *Client),
+		clients: make(map[ClientId]*Client),
 	}
 	return g
 }
 
-// Run starts the goroutine that manages connections and message distribution.
 func (g *Gordian) Run() {
 	go g.manageClients()
 }
 
-// WSHandler returns a function to be called by http.ListenAndServe to handle a
-// new websocket connection.
 func (g *Gordian) WSHandler() func(conn *websocket.Conn) {
 	return func(conn *websocket.Conn) {
-		g.Connect <- conn
-		clientData := <-g.Control
-		if clientData.Id == nil || clientData.CtrlType != CONNECT {
+		g.Control <- &Client{Ctrl: CONNECT, Conn: conn}
+		client := <-g.Control
+		if client.Id == nil || client.Ctrl != REGISTER {
 			return
 		}
-		clientData.toClient = make(chan *Message)
-		g.clientCtrl <- clientData
-		go g.writeToWS(conn, clientData)
-		g.readFromWS(conn, clientData)
-		clientData.CtrlType = DISCONNECT
-		g.Control <- clientData
-		clientData.CtrlType = DISCONNECT
-		g.clientCtrl <- clientData
+		client.message = make(chan *Message)
+		g.manage <- client
+		go g.writeToWS(client)
+		g.readFromWS(client)
+		client.Ctrl = CLOSE
+		g.Control <- client
+		g.manage <- client
 	}
 }
 
-// manageClients waits for connection or message events and updates the
-// internal state or delivers the message, respectively.
 func (g *Gordian) manageClients() {
 	for {
 		select {
-		case msg := <-g.Messages:
-			if clientData, ok := g.clients[msg.To]; ok {
-				clientData.toClient <- msg
+		case msg := <-g.Message:
+			if client, ok := g.clients[msg.To]; ok {
+				client.message <- msg
 			}
-		case clientData := <-g.clientCtrl:
-			if clientData.CtrlType == CONNECT {
-				g.clients[clientData.Id] = *clientData
-			} else {
-				close(clientData.toClient)
-				delete(g.clients, clientData.Id)
+		case client := <-g.manage:
+			switch client.Ctrl {
+			case REGISTER:
+				g.clients[client.Id] = client
+			case CLOSE:
+				close(client.message)
+				delete(g.clients, client.Id)
 			}
 		}
 	}
 }
 
-// readFromWS reads a message from the client and passes it to clientManager.
-func (g *Gordian) readFromWS(conn *websocket.Conn, clientData *ClientData) {
+func (g *Gordian) readFromWS(client *Client) {
 	for {
 		var data MessageData
-		err := websocket.JSON.Receive(conn, &data)
+		err := websocket.JSON.Receive(client.Conn, &data)
 		switch err {
 		case nil:
-			g.Messages <- &Message{clientData.Id, nil, data}
+			g.Message <- &Message{client.Id, nil, data}
 		case io.EOF:
 			return
 		default:
@@ -118,14 +101,13 @@ func (g *Gordian) readFromWS(conn *websocket.Conn, clientData *ClientData) {
 	}
 }
 
-// writeToWS gets messages from clientManager and sends them to the client.
-func (g *Gordian) writeToWS(conn *websocket.Conn, clientData *ClientData) {
+func (g *Gordian) writeToWS(client *Client) {
 	for {
-		msg, ok := <-clientData.toClient
+		msg, ok := <-client.message
 		if !ok {
 			return
 		}
-		if err := websocket.JSON.Send(conn, msg.Data); err != nil {
+		if err := websocket.JSON.Send(client.Conn, msg.Data); err != nil {
 			fmt.Println(err)
 		}
 	}

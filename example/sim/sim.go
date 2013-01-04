@@ -17,7 +17,7 @@ type Sim struct {
 func New() *Sim {
 	s := &Sim{
 		clients: make(map[gordian.ClientId]struct{}),
-		ticker:  time.Tick(10 * 1000000),
+		ticker:  time.Tick(10 * time.Millisecond),
 		Gordian: gordian.New(),
 	}
 	return s
@@ -34,20 +34,23 @@ func (s *Sim) run() {
 	i := 0
 	for {
 		select {
-		case <-s.Connect:
-			s.curId++
-			s.clients[s.curId] = struct{}{}
-			s.Control <- &gordian.ClientInfo{s.curId, gordian.CONNECT}
-		case ci := <-s.Control:
-			if ci.CtrlType == gordian.DISCONNECT {
-				delete(s.clients, ci.Id)
+		case client := <-s.Control:
+			switch client.Ctrl {
+			case gordian.CONNECT:
+				s.curId++
+				client.Id = s.curId
+				client.Ctrl = gordian.REGISTER
+				s.clients[client.Id] = struct{}{}
+				s.Control <- client
+			case gordian.CLOSE:
+				delete(s.clients, client.Id)
 			}
 		case <-s.ticker:
 			data["data"] = strconv.Itoa(i)
 			msg.Data = data
 			for id, _ := range s.clients {
 				msg.To = id
-				s.Messages <- msg
+				s.Message <- msg
 			}
 			i++
 		}

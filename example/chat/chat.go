@@ -1,12 +1,9 @@
 package chat
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"github.com/ianremmler/gordian"
 
-	"errors"
 	"strings"
-	"fmt"
 )
 
 type Chat struct {
@@ -15,11 +12,10 @@ type Chat struct {
 }
 
 func New() *Chat {
-	c := &Chat{
+	return &Chat{
 		clients: make(map[gordian.ClientId]struct{}),
 		Gordian: gordian.New(),
 	}
-	return c
 }
 
 func (c *Chat) Run() {
@@ -30,40 +26,39 @@ func (c *Chat) Run() {
 func (c *Chat) run() {
 	for {
 		select {
-		case ws := <-c.Connect:
-			id, err := c.connect(ws)
-			ci := &gordian.ClientInfo{id, gordian.CONNECT}
-			if err != nil {
-				ci.CtrlType = gordian.DISCONNECT
+		case client := <-c.Control:
+			switch client.Ctrl {
+			case gordian.CONNECT:
+				client.Ctrl = gordian.REGISTER
+				if !c.connect(client) {
+					client.Ctrl = gordian.CLOSE
+				}
+				c.Control <- client
+			case gordian.CLOSE:
+				c.close(client)
 			}
-			c.Control <- ci
-		case ci := <-c.Control:
-			if ci.CtrlType == gordian.DISCONNECT {
-				c.disconnect(ci.Id)
-			}
-		case m := <-c.Messages:
+		case m := <-c.Message:
 			c.handleMessage(m)
 		}
 	}
 }
 
-func (c *Chat) connect(ws *websocket.Conn) (gordian.ClientId, error) {
-	path := ws.Request().URL.Path
-	id := path[strings.LastIndex(path, "/")+1:]
-	if id == "" {
-		return "", errors.New("Invalid ID")
+func (c *Chat) connect(client *gordian.Client) bool {
+	path := client.Conn.Request().URL.Path
+	client.Id = path[strings.LastIndex(path, "/")+1:]
+	if client.Id == "" {
+		return false
 	}
-	c.clients[id] = struct{}{}
-	return id, nil
+	c.clients[client.Id] = struct{}{}
+	return true
 }
 
-func (c *Chat) disconnect(id gordian.ClientId) {
-	delete(c.clients, id)
+func (c *Chat) close(client *gordian.Client) {
+	delete(c.clients, client.Id)
 }
 
 func (c *Chat) send(msg *gordian.Message) {
-	fmt.Println("sending:", msg)
-	c.Messages <- msg
+	c.Message <- msg
 }
 
 func (c *Chat) handleMessage(msg *gordian.Message) {
