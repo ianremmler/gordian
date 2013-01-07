@@ -23,7 +23,7 @@ type MessageData interface{}
 // Message is the internal message format
 type Message struct {
 	From ClientId    // From is the originating client.
-	To   ClientId    // To is the destination client, if any.
+	To   ClientId    // To is the destination client.
 	Data MessageData // Data is the message payload.
 }
 
