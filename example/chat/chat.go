@@ -1,8 +1,11 @@
-package chat
+package main
 
 import (
+	"code.google.com/p/go.net/websocket"
 	"github.com/ianremmler/gordian"
 
+	"go/build"
+	"net/http"
 	"strings"
 )
 
@@ -11,7 +14,7 @@ type Chat struct {
 	*gordian.Gordian
 }
 
-func New() *Chat {
+func NewChat() *Chat {
 	return &Chat{
 		clients: make(map[gordian.ClientId]struct{}),
 		Gordian: gordian.New(),
@@ -70,5 +73,17 @@ func (c *Chat) handleMessage(msg *gordian.Message) {
 			out.To = id
 			c.send(out)
 		}
+	}
+}
+
+func main() {
+	c := NewChat()
+	c.Run()
+
+	htmlDir := build.Default.GOPATH + "/src/github.com/ianremmler/gordian/examples/chat"
+	http.Handle("/chat/", websocket.Handler(c.WSHandler()))
+	http.Handle("/", http.FileServer(http.Dir(htmlDir)))
+	if err := http.ListenAndServe(":12345", nil); err != nil {
+		panic("ListenAndServe: " + err.Error())
 	}
 }
