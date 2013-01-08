@@ -83,7 +83,7 @@ func main() {
 	htmlDir := build.Default.GOPATH + "/src/github.com/ianremmler/gordian/examples/chat"
 	http.Handle("/chat/", websocket.Handler(c.WSHandler()))
 	http.Handle("/", http.FileServer(http.Dir(htmlDir)))
-	if err := http.ListenAndServe(":12345", nil); err != nil {
+	if err := http.ListenAndServe(":8080", nil); err != nil {
 		panic("ListenAndServe: " + err.Error())
 	}
 }
