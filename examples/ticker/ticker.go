@@ -4,8 +4,8 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"github.com/ianremmler/gordian"
 
-	"net/http"
 	"go/build"
+	"net/http"
 	"strconv"
 	"time"
 )
