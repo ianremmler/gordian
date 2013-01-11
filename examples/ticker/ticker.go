@@ -32,7 +32,7 @@ func (t *Ticker) Run() {
 }
 
 func (t *Ticker) run() {
-	msg := &gordian.Message{}
+	msg := gordian.Message{}
 	data := map[string]interface{}{"type": "message"}
 	i := 0
 	for {
@@ -53,7 +53,7 @@ func (t *Ticker) run() {
 			msg.Data = data
 			for id, _ := range t.clients {
 				msg.To = id
-				t.Message <- msg
+				t.OutMessage <- msg
 			}
 			i++
 		}

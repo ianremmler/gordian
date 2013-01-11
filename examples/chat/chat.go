@@ -33,14 +33,14 @@ func (c *Chat) run() {
 			switch client.Ctrl {
 			case gordian.CONNECT:
 				client.Ctrl = gordian.REGISTER
-				if !c.connect(client) {
+				if !c.connect(&client) {
 					client.Ctrl = gordian.CLOSE
 				}
 				c.Control <- client
 			case gordian.CLOSE:
 				c.close(client)
 			}
-		case m := <-c.Message:
+		case m := <-c.InMessage:
 			c.handleMessage(m)
 		}
 	}
@@ -56,19 +56,19 @@ func (c *Chat) connect(client *gordian.Client) bool {
 	return true
 }
 
-func (c *Chat) close(client *gordian.Client) {
+func (c *Chat) close(client gordian.Client) {
 	delete(c.clients, client.Id)
 }
 
-func (c *Chat) send(msg *gordian.Message) {
-	c.Message <- msg
+func (c *Chat) send(msg gordian.Message) {
+	c.OutMessage <- msg
 }
 
-func (c *Chat) handleMessage(msg *gordian.Message) {
+func (c *Chat) handleMessage(msg gordian.Message) {
 	data := msg.Data.(map[string]interface{})
 	if in, ok := data["data"].(string); ok {
 		data["data"] = msg.From.(string) + ": " + in
-		out := &gordian.Message{From: msg.From, Data: data}
+		out := gordian.Message{From: msg.From, Data: data}
 		for id, _ := range c.clients {
 			out.To = id
 			c.send(out)
