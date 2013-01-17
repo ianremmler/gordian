@@ -42,16 +42,18 @@ type Gordian struct {
 	OutMessage chan Message // OutMessage passes outgoing messages from Gordian to clients.
 	manage     chan Client
 	clients    map[ClientId]Client
+	bufSize    int
 }
 
 // New constructs an initialized Gordian instance.
-func New() *Gordian {
+func New(bufSize int) *Gordian {
 	g := &Gordian{
 		Control:    make(chan Client),
-		InMessage:  make(chan Message, 10),
-		OutMessage: make(chan Message, 10),
+		InMessage:  make(chan Message, bufSize),
+		OutMessage: make(chan Message, bufSize),
 		manage:     make(chan Client),
 		clients:    make(map[ClientId]Client),
+		bufSize:    bufSize,
 	}
 	return g
 }
@@ -86,7 +88,7 @@ func (g *Gordian) WSHandler() func(conn *websocket.Conn) {
 		if client.Id == nil || client.Ctrl != REGISTER {
 			return
 		}
-		client.message = make(chan Message, 10)
+		client.message = make(chan Message, g.bufSize)
 		g.manage <- client
 		go g.writeToWS(client)
 		g.readFromWS(client)
