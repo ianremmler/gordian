@@ -21,7 +21,7 @@ func NewTicker() *Ticker {
 	t := &Ticker{
 		clients: make(map[gordian.ClientId]struct{}),
 		ticker:  time.Tick(10 * time.Millisecond),
-		Gordian: gordian.New(),
+		Gordian: gordian.New(0),
 	}
 	return t
 }

@@ -17,7 +17,7 @@ type Chat struct {
 func NewChat() *Chat {
 	return &Chat{
 		clients: make(map[gordian.ClientId]struct{}),
-		Gordian: gordian.New(),
+		Gordian: gordian.New(0),
 	}
 }
 
