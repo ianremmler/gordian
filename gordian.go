@@ -65,7 +65,10 @@ func (g *Gordian) Run() {
 			select {
 			case msg := <-g.OutMessage:
 				if client, ok := g.clients[msg.To]; ok {
-					client.message <- msg
+					select {
+					case client.message <- msg:
+					default:
+					}
 				}
 			case client := <-g.manage:
 				switch client.Ctrl {
