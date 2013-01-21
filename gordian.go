@@ -37,22 +37,22 @@ type Client struct {
 
 // Gordian processes and distributes messages and manages clients.
 type Gordian struct {
-	Control    chan Client  // Control is used to pass client control information within Gordian.
+	Control    chan *Client // Control is used to pass client control information within Gordian.
 	InMessage  chan Message // InMessage passes incoming messages from clients to Gordian.
 	OutMessage chan Message // OutMessage passes outgoing messages from Gordian to clients.
-	manage     chan Client
-	clients    map[ClientId]Client
+	manage     chan *Client
+	clients    map[ClientId]*Client
 	bufSize    int
 }
 
 // New constructs an initialized Gordian instance.
 func New(bufSize int) *Gordian {
 	g := &Gordian{
-		Control:    make(chan Client),
+		Control:    make(chan *Client),
 		InMessage:  make(chan Message, bufSize),
 		OutMessage: make(chan Message, bufSize),
-		manage:     make(chan Client),
-		clients:    make(map[ClientId]Client),
+		manage:     make(chan *Client),
+		clients:    make(map[ClientId]*Client),
 		bufSize:    bufSize,
 	}
 	return g
@@ -86,7 +86,7 @@ func (g *Gordian) Run() {
 // WSHandler returns a websocket.Handler compatible function to handle connections.
 func (g *Gordian) WSHandler() func(conn *websocket.Conn) {
 	return func(conn *websocket.Conn) {
-		g.Control <- Client{Ctrl: CONNECT, Conn: conn}
+		g.Control <- &Client{Ctrl: CONNECT, Conn: conn}
 		client := <-g.Control
 		if client.Id == nil || client.Ctrl != REGISTER {
 			return
@@ -102,7 +102,7 @@ func (g *Gordian) WSHandler() func(conn *websocket.Conn) {
 }
 
 // readFromWS reads a client websocket message and passes it into the system.
-func (g *Gordian) readFromWS(client Client) {
+func (g *Gordian) readFromWS(client *Client) {
 	for {
 		var data MessageData
 		err := websocket.JSON.Receive(client.Conn, &data)
@@ -118,7 +118,7 @@ func (g *Gordian) readFromWS(client Client) {
 }
 
 // writeToWS sends a message to a client's websocket.
-func (g *Gordian) writeToWS(client Client) {
+func (g *Gordian) writeToWS(client *Client) {
 	for {
 		msg, ok := <-client.message
 		if !ok {

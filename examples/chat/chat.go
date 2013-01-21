@@ -33,7 +33,7 @@ func (c *Chat) run() {
 			switch client.Ctrl {
 			case gordian.CONNECT:
 				client.Ctrl = gordian.REGISTER
-				if !c.connect(&client) {
+				if !c.connect(client) {
 					client.Ctrl = gordian.CLOSE
 				}
 				c.Control <- client
@@ -56,7 +56,7 @@ func (c *Chat) connect(client *gordian.Client) bool {
 	return true
 }
 
-func (c *Chat) close(client gordian.Client) {
+func (c *Chat) close(client *gordian.Client) {
 	delete(c.clients, client.Id)
 }
 
