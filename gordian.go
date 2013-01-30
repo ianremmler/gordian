@@ -3,6 +3,8 @@ package gordian
 import (
 	"code.google.com/p/go.net/websocket"
 
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -11,6 +13,8 @@ import (
 const (
 	CONNECT = iota
 	REGISTER
+	ESTABLISH
+	ABORT
 	CLOSE
 )
 
@@ -24,7 +28,17 @@ type MessageData interface{}
 type Message struct {
 	From ClientId    // From is the originating client.
 	To   ClientId    // To is the destination client.
+	Type string      // Type is the type of message.
 	Data MessageData // Data is the message payload.
+}
+
+// Unmarshal decodes json data in an incoming message
+func (m *Message) Unmarshal(data interface{}) error {
+	jsonData, ok := m.Data.(json.RawMessage)
+	if !ok {
+		return errors.New("data is not a json.RawMessage")
+	}
+	return json.Unmarshal(jsonData, data)
 }
 
 // Client stores state and control information for a client.
@@ -72,7 +86,7 @@ func (g *Gordian) Run() {
 				}
 			case client := <-g.manage:
 				switch client.Ctrl {
-				case REGISTER:
+				case ESTABLISH:
 					g.clients[client.Id] = client
 				case CLOSE:
 					close(client.message)
@@ -89,12 +103,18 @@ func (g *Gordian) WSHandler() func(conn *websocket.Conn) {
 		g.Control <- &Client{Ctrl: CONNECT, Conn: conn}
 		client := <-g.Control
 		if client.Id == nil || client.Ctrl != REGISTER {
+			client.Ctrl = ABORT
+			g.Control <- client
 			return
 		}
 		client.message = make(chan Message, g.bufSize)
+		client.Ctrl = ESTABLISH
 		g.manage <- client
+		g.Control <- client
+
 		go g.writeToWS(client)
 		g.readFromWS(client)
+
 		client.Ctrl = CLOSE
 		g.Control <- client
 		g.manage <- client
@@ -104,16 +124,34 @@ func (g *Gordian) WSHandler() func(conn *websocket.Conn) {
 // readFromWS reads a client websocket message and passes it into the system.
 func (g *Gordian) readFromWS(client *Client) {
 	for {
-		var data MessageData
-		err := websocket.JSON.Receive(client.Conn, &data)
-		switch err {
-		case nil:
-			g.InMessage <- Message{From: client.Id, Data: data}
-		case io.EOF:
+		jsonMsg := map[string]json.RawMessage{}
+		err := websocket.JSON.Receive(client.Conn, &jsonMsg)
+		if err != nil {
+			if err != io.EOF {
+				fmt.Println(err)
+			}
 			return
-		default:
-			fmt.Println(err)
 		}
+
+		msgType, ok := jsonMsg["type"]
+		if !ok {
+			break
+		}
+		typeStr := ""
+		err = json.Unmarshal(msgType, &typeStr)
+		if err != nil {
+			break;
+		}
+		msgData, ok := jsonMsg["data"]
+		if !ok {
+			break
+		}
+		msg := Message{
+			From: client.Id,
+			Type: typeStr,
+			Data: msgData,
+		}
+		g.InMessage <- msg
 	}
 }
 
@@ -124,7 +162,11 @@ func (g *Gordian) writeToWS(client *Client) {
 		if !ok {
 			return
 		}
-		if err := websocket.JSON.Send(client.Conn, msg.Data); err != nil {
+		jsonMsg := map[string]interface{}{
+			"type": msg.Type,
+			"data": msg.Data,
+		};
+		if err := websocket.JSON.Send(client.Conn, jsonMsg); err != nil {
 			fmt.Println(err)
 		}
 	}
