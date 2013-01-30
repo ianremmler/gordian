@@ -36,7 +36,7 @@ type Message struct {
 func (m *Message) Unmarshal(data interface{}) error {
 	jsonData, ok := m.Data.(json.RawMessage)
 	if !ok {
-		return errors.New("data is not a json.RawMessage")
+		return errors.New("Data is not a json.RawMessage")
 	}
 	return json.Unmarshal(jsonData, data)
 }
