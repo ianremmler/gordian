@@ -132,24 +132,15 @@ func (g *Gordian) readFromWS(client *Client) {
 			}
 			return
 		}
-
-		msgType, ok := jsonMsg["type"]
-		if !ok {
-			break
-		}
 		typeStr := ""
-		err = json.Unmarshal(msgType, &typeStr)
+		err = json.Unmarshal(jsonMsg["type"], &typeStr)
 		if err != nil {
-			break;
-		}
-		msgData, ok := jsonMsg["data"]
-		if !ok {
 			break
 		}
 		msg := Message{
 			From: client.Id,
 			Type: typeStr,
-			Data: msgData,
+			Data: jsonMsg["data"],
 		}
 		g.InMessage <- msg
 	}
@@ -165,7 +156,7 @@ func (g *Gordian) writeToWS(client *Client) {
 		jsonMsg := map[string]interface{}{
 			"type": msg.Type,
 			"data": msg.Data,
-		};
+		}
 		if err := websocket.JSON.Send(client.Conn, jsonMsg); err != nil {
 			fmt.Println(err)
 		}
