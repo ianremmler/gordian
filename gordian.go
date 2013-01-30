@@ -43,31 +43,31 @@ func (m *Message) Unmarshal(data interface{}) error {
 
 // Client stores state and control information for a client.
 type Client struct {
-	Id      ClientId        // Id is a unique identifier.
-	Ctrl    int             // Ctrl is the current control type.
-	Conn    *websocket.Conn // Conn is the connection info provided by the websocket package.
-	message chan Message
+	Id     ClientId        // Id is a unique identifier.
+	Ctrl   int             // Ctrl is the current control type.
+	Conn   *websocket.Conn // Conn is the connection info provided by the websocket package.
+	outBox chan Message
 }
 
 // Gordian processes and distributes messages and manages clients.
 type Gordian struct {
-	Control    chan *Client // Control is used to pass client control information within Gordian.
-	InMessage  chan Message // InMessage passes incoming messages from clients to Gordian.
-	OutMessage chan Message // OutMessage passes outgoing messages from Gordian to clients.
-	manage     chan *Client
-	clients    map[ClientId]*Client
-	bufSize    int
+	Control chan *Client // Control is used to pass client control information within Gordian.
+	InBox   chan Message // InBox passes incoming messages from clients to Gordian.
+	OutBox  chan Message // OutBox passes outgoing messages from Gordian to clients.
+	manage  chan *Client
+	clients map[ClientId]*Client
+	bufSize int
 }
 
 // New constructs an initialized Gordian instance.
 func New(bufSize int) *Gordian {
 	g := &Gordian{
-		Control:    make(chan *Client),
-		InMessage:  make(chan Message, bufSize),
-		OutMessage: make(chan Message, bufSize),
-		manage:     make(chan *Client),
-		clients:    make(map[ClientId]*Client),
-		bufSize:    bufSize,
+		Control: make(chan *Client),
+		InBox:   make(chan Message, bufSize),
+		OutBox:  make(chan Message, bufSize),
+		manage:  make(chan *Client),
+		clients: make(map[ClientId]*Client),
+		bufSize: bufSize,
 	}
 	return g
 }
@@ -77,10 +77,10 @@ func (g *Gordian) Run() {
 	go func() {
 		for {
 			select {
-			case msg := <-g.OutMessage:
+			case msg := <-g.OutBox:
 				if client, ok := g.clients[msg.To]; ok {
 					select {
-					case client.message <- msg:
+					case client.outBox <- msg:
 					default:
 					}
 				}
@@ -89,7 +89,7 @@ func (g *Gordian) Run() {
 				case ESTABLISH:
 					g.clients[client.Id] = client
 				case CLOSE:
-					close(client.message)
+					close(client.outBox)
 					delete(g.clients, client.Id)
 				}
 			}
@@ -107,7 +107,7 @@ func (g *Gordian) WSHandler() func(conn *websocket.Conn) {
 			g.Control <- client
 			return
 		}
-		client.message = make(chan Message, g.bufSize)
+		client.outBox = make(chan Message, g.bufSize)
 		client.Ctrl = ESTABLISH
 		g.manage <- client
 		g.Control <- client
@@ -142,14 +142,14 @@ func (g *Gordian) readFromWS(client *Client) {
 			Type: typeStr,
 			Data: jsonMsg["data"],
 		}
-		g.InMessage <- msg
+		g.InBox <- msg
 	}
 }
 
 // writeToWS sends a message to a client's websocket.
 func (g *Gordian) writeToWS(client *Client) {
 	for {
-		msg, ok := <-client.message
+		msg, ok := <-client.outBox
 		if !ok {
 			return
 		}
