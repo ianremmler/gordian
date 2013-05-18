@@ -11,11 +11,11 @@ import (
 
 // Control types.
 const (
-	CONNECT = iota
-	REGISTER
-	ESTABLISH
-	ABORT
-	CLOSE
+	Connect = iota
+	Register
+	Establish
+	Abort
+	Close
 )
 
 // ClientId is a user-defined client identifier, which can be of any hashable type.
@@ -86,9 +86,9 @@ func (g *Gordian) Run() {
 				}
 			case client := <-g.manage:
 				switch client.Ctrl {
-				case ESTABLISH:
+				case Establish:
 					g.clients[client.Id] = client
-				case CLOSE:
+				case Close:
 					close(client.outBox)
 					delete(g.clients, client.Id)
 				}
@@ -97,28 +97,26 @@ func (g *Gordian) Run() {
 	}()
 }
 
-// WSHandler returns a websocket.Handler compatible function to handle connections.
-func (g *Gordian) WSHandler() func(conn *websocket.Conn) {
-	return func(conn *websocket.Conn) {
-		g.Control <- &Client{Ctrl: CONNECT, Conn: conn}
-		client := <-g.Control
-		if client.Id == nil || client.Ctrl != REGISTER {
-			client.Ctrl = ABORT
-			g.Control <- client
-			return
-		}
-		client.outBox = make(chan Message, g.bufSize)
-		client.Ctrl = ESTABLISH
-		g.manage <- client
+// WSHandler is a websocket.Handler to handle connections.
+func (g *Gordian) WSHandler(conn *websocket.Conn) {
+	g.Control <- &Client{Ctrl: Connect, Conn: conn}
+	client := <-g.Control
+	if client.Id == nil || client.Ctrl != Register {
+		client.Ctrl = Abort
 		g.Control <- client
-
-		go g.writeToWS(client)
-		g.readFromWS(client)
-
-		client.Ctrl = CLOSE
-		g.Control <- client
-		g.manage <- client
+		return
 	}
+	client.outBox = make(chan Message, g.bufSize)
+	client.Ctrl = Establish
+	g.manage <- client
+	g.Control <- client
+
+	go g.writeToWS(client)
+	g.readFromWS(client)
+
+	client.Ctrl = Close
+	g.Control <- client
+	g.manage <- client
 }
 
 // readFromWS reads a client websocket message and passes it into the system.
