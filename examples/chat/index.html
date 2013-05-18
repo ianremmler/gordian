@@ -1,39 +1,35 @@
 <!doctype html>
 <html>
-<head>
-<meta charset="UTF-8">
-<title>go chat</title>
-</head>
-<body>
-
-<input id="name" type="text">name</input>
-<section id="content"></section>
-<input id="message" type="text"/>
-
-<script src="http://code.jquery.com/jquery.min.js"></script>
-<script src="http://jquery-json.googlecode.com/files/jquery.json-2.4.min.js"></script>
-<script src="http://jquery-websocket.googlecode.com/files/jquery.websocket-0.0.1.js"></script>
-
-<script>
-$('#message').hide()
-$('#content').hide()
-
-$('#name').change(function(){
-  $('#name').attr('readonly', true);
-  $('#message').show()
-  $('#content').show()
-  var ws = $.websocket("ws://localhost:8080/chat/" + this.value, {
-          events: {
-                  message: function(e) { $('#content').append(e.data + '<br>') }
-          }
-  });
-  $('#message').change(function(){
-    ws.send('message', this.value);
-    this.value = '';
-  });
-});
-
-</script>
-
-</body>
+	<head>
+		<meta charset="UTF-8">
+		<title>go chat</title>
+	</head>
+	<body>
+		<input id="name" type="text">name</input>
+		<section id="content"></section>
+		<input id="message" type="text"/>
+		<script src="http://code.jquery.com/jquery.min.js"></script>
+		<script>
+			$('#message').hide();
+			$('#content').hide();
+			$('#name').change(function() {
+				$('#name').attr('readonly', true);
+				$('#message').show();
+				$('#content').show();
+				var ws = new WebSocket("ws://" + window.location.host + "/chat/" + this.value)
+				ws.onmessage = function(evt) {
+					msg = JSON.parse(evt.data);
+					$('#content').append(msg.data + '<br>');
+				};
+				$('#message').change(function() {
+					var msg = {
+						type: 'message',
+						data: this.value
+					};
+					ws.send(JSON.stringify(msg));
+					this.value = '';
+				});
+			});
+		</script>
+	</body>
 </html>
