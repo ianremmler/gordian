@@ -1,12 +1,13 @@
 package gordian
 
 import (
-	"code.google.com/p/go.net/websocket"
+	"github.com/gorilla/websocket"
 
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 )
 
 // Control types.
@@ -16,6 +17,10 @@ const (
 	Establish
 	Abort
 	Close
+)
+
+var (
+	upgrader = websocket.Upgrader{}
 )
 
 // ClientId is a user-defined client identifier, which can be of any hashable type.
@@ -43,10 +48,11 @@ func (m *Message) Unmarshal(data interface{}) error {
 
 // Client stores state and control information for a client.
 type Client struct {
-	Id     ClientId        // Id is a unique identifier.
-	Ctrl   int             // Ctrl is the current control type.
-	Conn   *websocket.Conn // Conn is the connection info provided by the websocket package.
-	outBox chan Message
+	Id      ClientId        // Id is a unique identifier.
+	Ctrl    int             // Ctrl is the current control type.
+	Conn    *websocket.Conn // Conn is the connection info provided by the websocket package.
+	Request *http.Request   // Request is the original http request
+	outBox  chan Message
 }
 
 // Gordian processes and distributes messages and manages clients.
@@ -97,9 +103,14 @@ func (g *Gordian) Run() {
 	}()
 }
 
-// WSHandler is a websocket.Handler to handle connections.
-func (g *Gordian) WSHandler(conn *websocket.Conn) {
-	g.Control <- &Client{Ctrl: Connect, Conn: conn}
+// ServeHTTP handles a websocket connection
+func (g *Gordian) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+
+	g.Control <- &Client{Ctrl: Connect, Conn: conn, Request: r}
 	client := <-g.Control
 	if client.Id == nil || client.Ctrl != Register {
 		client.Ctrl = Abort
@@ -123,7 +134,7 @@ func (g *Gordian) WSHandler(conn *websocket.Conn) {
 func (g *Gordian) readFromWS(client *Client) {
 	for {
 		jsonMsg := map[string]json.RawMessage{}
-		err := websocket.JSON.Receive(client.Conn, &jsonMsg)
+		err := websocket.ReadJSON(client.Conn, &jsonMsg)
 		if err != nil {
 			if err != io.EOF {
 				fmt.Println(err)
@@ -155,7 +166,7 @@ func (g *Gordian) writeToWS(client *Client) {
 			"type": msg.Type,
 			"data": msg.Data,
 		}
-		if err := websocket.JSON.Send(client.Conn, jsonMsg); err != nil {
+		if err := websocket.WriteJSON(client.Conn, jsonMsg); err != nil {
 			fmt.Println(err)
 		}
 	}

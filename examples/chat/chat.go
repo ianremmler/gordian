@@ -1,7 +1,6 @@
 package main
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"github.com/ianremmler/gordian"
 
 	"go/build"
@@ -48,7 +47,7 @@ func (c *Chat) clientCtrl(client *gordian.Client) {
 }
 
 func (c *Chat) connect(client *gordian.Client) {
-	path := client.Conn.Request().URL.Path
+	path := client.Request.URL.Path
 	client.Id = path[strings.LastIndex(path, "/")+1:]
 	if client.Id == "" {
 		client.Ctrl = gordian.Abort
@@ -92,7 +91,7 @@ func main() {
 	c.Run()
 
 	htmlDir := build.Default.GOPATH + "/src/github.com/ianremmler/gordian/examples/chat"
-	http.Handle("/chat/", websocket.Handler(c.WSHandler))
+	http.Handle("/chat/", c)
 	http.Handle("/", http.FileServer(http.Dir(htmlDir)))
 	port := ":8000"
 	if len(os.Args) > 1 {
