@@ -3,13 +3,12 @@
 package gordian
 
 import (
-	"github.com/gorilla/websocket"
-
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
+	"log"
 	"net/http"
+
+	"github.com/gorilla/websocket"
 )
 
 // Control types.
@@ -136,17 +135,16 @@ func (g *Gordian) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (g *Gordian) readFromWS(client *Client) {
 	for {
 		jsonMsg := map[string]json.RawMessage{}
-		err := websocket.ReadJSON(client.Conn, &jsonMsg)
+		err := client.Conn.ReadJSON(&jsonMsg)
 		if err != nil {
-			if err != io.EOF {
-				fmt.Println(err)
-			}
+			log.Println(err)
 			return
 		}
 		typeStr := ""
 		err = json.Unmarshal(jsonMsg["type"], &typeStr)
 		if err != nil {
-			break
+			log.Println(err)
+			continue
 		}
 		msg := Message{
 			From: client.Id,
@@ -169,7 +167,7 @@ func (g *Gordian) writeToWS(client *Client) {
 			"data": msg.Data,
 		}
 		if err := websocket.WriteJSON(client.Conn, jsonMsg); err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}
 }
