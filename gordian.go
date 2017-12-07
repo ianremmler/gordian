@@ -137,7 +137,9 @@ func (g *Gordian) readFromWS(client *Client) {
 		jsonMsg := map[string]json.RawMessage{}
 		err := client.Conn.ReadJSON(&jsonMsg)
 		if err != nil {
-			log.Println(err)
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
+				log.Println(err)
+			}
 			return
 		}
 		typeStr := ""
